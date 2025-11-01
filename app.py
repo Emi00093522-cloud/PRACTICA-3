@@ -15,8 +15,6 @@ st.set_page_config(
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 
-st.success("✅ Cargando desde estructura real: modulos/")
-
 # Función para cargar módulos manualmente
 def load_module(module_name, file_path):
     """Carga un módulo desde una ruta específica"""
@@ -39,7 +37,6 @@ def load_module(module_name, file_path):
 
 # 🔥 CARGAR CONEXIÓN PRIMERO
 try:
-    st.info("🔄 Cargando módulo de conexión...")
     conexion_module = load_module('conexion', os.path.join(current_dir, 'modulos', 'config', 'conexion.py'))
     
     # Hacer que conexion esté disponible como config.conexion
@@ -51,16 +48,12 @@ try:
     get_connection = conexion_module.get_connection
     verify_user = conexion_module.verify_user
     
-    st.success("✅ Módulo de conexión cargado")
-    
 except Exception as e:
     st.error(f"❌ Error cargando conexión: {e}")
     st.stop()
 
 # 🔥 CARGAR MÓDULOS DE modulos/
 try:
-    st.info("🔄 Cargando módulos de la aplicación...")
-    
     # Función especial para cargar módulos que necesitan config
     def load_app_module(module_name, file_path):
         spec = importlib.util.spec_from_file_location(module_name, file_path)
@@ -87,8 +80,6 @@ try:
     show_clientes = clientes_module.show_clientes
     show_productos = productos_module.show_productos
     show_ventas = ventas_module.show_ventas
-    
-    st.success("✅ Todos los módulos cargados correctamente")
     
 except Exception as e:
     st.error(f"❌ Error cargando módulos: {e}")
@@ -180,30 +171,43 @@ def main():
     """
     Función principal de la aplicación
     """
-    # Inicializar estado de sesión
+    # ✅ VERIFICACIÓN MEJORADA DE SESIÓN
     if 'logged_in' not in st.session_state:
         st.session_state.logged_in = False
     if 'user' not in st.session_state:
         st.session_state.user = None
     
-    # Mostrar login si no está autenticado
+    # ✅ SI NO ESTÁ LOGUEADO, MOSTRAR SOLO LOGIN
     if not st.session_state.logged_in:
-        show_login()
-    else:
-        # Mostrar menú y contenido principal
-        selected_section = show_menu()
+        # Limpiar sidebar completamente
+        st.sidebar.empty()
         
-        # Navegación entre módulos
-        if selected_section == "dashboard":
-            show_dashboard()
-        elif selected_section == "clientes":
-            show_clientes()
-        elif selected_section == "productos":
-            show_productos()
-        elif selected_section == "ventas":
-            show_ventas()
-        elif selected_section == "config":
-            show_config()
+        # Mostrar login y detener ejecución
+        login_result = show_login()
+        
+        # Si el login fue exitoso, recargar
+        if login_result:
+            st.rerun()
+        else:
+            # Si no está logueado, detener aquí
+            st.stop()
+        return
+    
+    # ✅ SOLO SI ESTÁ LOGUEADO - MOSTRAR LA APLICACIÓN COMPLETA
+    # Mostrar menú y contenido principal
+    selected_section = show_menu()
+    
+    # Navegación entre módulos
+    if selected_section == "dashboard":
+        show_dashboard()
+    elif selected_section == "clientes":
+        show_clientes()
+    elif selected_section == "productos":
+        show_productos()
+    elif selected_section == "ventas":
+        show_ventas()
+    elif selected_section == "config":
+        show_config()
 
 if __name__ == "__main__":
     main()
