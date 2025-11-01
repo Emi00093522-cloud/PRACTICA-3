@@ -7,7 +7,56 @@ import importlib.util
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 
-st.success("✅ Paths configurados correctamente")
+# 🔍 VERIFICACIÓN DE ARCHIVOS ANTES DE CARGAR
+st.title("🔍 Verificación de Archivos")
+
+def verificar_archivo(ruta_archivo, nombre_archivo):
+    """Verifica si un archivo existe y muestra el resultado"""
+    if os.path.exists(ruta_archivo):
+        st.success(f"✅ {nombre_archivo} - ENCONTRADO")
+        return True
+    else:
+        st.error(f"❌ {nombre_archivo} - NO ENCONTRADO en: {ruta_archivo}")
+        return False
+
+# Lista de archivos críticos
+archivos_criticos = {
+    'login.py': os.path.join(current_dir, 'modules', 'login.py'),
+    'menu.py': os.path.join(current_dir, 'modules', 'menu.py'),
+    'clientes.py': os.path.join(current_dir, 'modules', 'clientes.py'),
+    'productos.py': os.path.join(current_dir, 'modules', 'productos.py'),
+    'ventas.py': os.path.join(current_dir, 'modules', 'ventas.py'),
+    'conexion.py': os.path.join(current_dir, 'config', 'conexion.py')
+}
+
+# Verificar todos los archivos
+todos_encontrados = True
+for nombre, ruta in archivos_criticos.items():
+    if not verificar_archivo(ruta, nombre):
+        todos_encontrados = False
+
+# Si faltan archivos, mostrar error y detener
+if not todos_encontrados:
+    st.error("🚫 Faltan archivos críticos. No se puede cargar la aplicación.")
+    st.info("""
+    **Estructura requerida:**
+    ```
+    tu_app/
+    ├── modules/
+    │   ├── login.py
+    │   ├── menu.py
+    │   ├── clientes.py
+    │   ├── productos.py
+    │   └── ventas.py
+    ├── config/
+    │   └── conexion.py
+    ├── app.py
+    └── requirements.txt
+    ```
+    """)
+    st.stop()
+
+st.success("🎉 Todos los archivos encontrados! Cargando aplicación...")
 
 # Función para cargar módulos manualmente
 def load_module(module_name, file_path):
@@ -23,21 +72,28 @@ def load_module(module_name, file_path):
 
 # Cargar módulos manualmente
 try:
+    st.info("🔄 Cargando módulos...")
+    
     # Cargar módulos de modules/
-    login_module = load_module('login', os.path.join(current_dir, 'modules', 'login.py'))
-    menu_module = load_module('menu', os.path.join(current_dir, 'modules', 'menu.py'))
-    clientes_module = load_module('clientes', os.path.join(current_dir, 'modules', 'clientes.py'))
-    productos_module = load_module('productos', os.path.join(current_dir, 'modules', 'productos.py'))
-    ventas_module = load_module('ventas', os.path.join(current_dir, 'modules', 'ventas.py'))
+    login_module = load_module('login', archivos_criticos['login.py'])
+    menu_module = load_module('menu', archivos_criticos['menu.py'])
+    clientes_module = load_module('clientes', archivos_criticos['clientes.py'])
+    productos_module = load_module('productos', archivos_criticos['productos.py'])
+    ventas_module = load_module('ventas', archivos_criticos['ventas.py'])
     
-    # Asignar funciones
-    show_login = login_module.show_login
-    show_menu = menu_module.show_menu
-    show_clientes = clientes_module.show_clientes
-    show_productos = productos_module.show_productos
-    show_ventas = ventas_module.show_ventas
-    
-    st.success("✅ Todos los módulos cargados correctamente")
+    # Verificar que los módulos se cargaron correctamente
+    if all([login_module, menu_module, clientes_module, productos_module, ventas_module]):
+        # Asignar funciones
+        show_login = login_module.show_login
+        show_menu = menu_module.show_menu
+        show_clientes = clientes_module.show_clientes
+        show_productos = productos_module.show_productos
+        show_ventas = ventas_module.show_ventas
+        
+        st.success("✅ Todos los módulos cargados correctamente")
+    else:
+        st.error("❌ Algunos módulos no se pudieron cargar")
+        st.stop()
     
 except Exception as e:
     st.error(f"❌ Error crítico cargando módulos: {e}")
@@ -59,7 +115,7 @@ def show_dashboard():
     
     try:
         # Cargar conexión manualmente
-        conexion_module = load_module('conexion', os.path.join(current_dir, 'config', 'conexion.py'))
+        conexion_module = load_module('conexion', archivos_criticos['conexion.py'])
         get_connection = conexion_module.get_connection
         
         conn = get_connection()
@@ -141,6 +197,9 @@ def main():
     """
     Función principal de la aplicación
     """
+    # Limpiar la verificación anterior
+    st.empty()
+    
     # Inicializar estado de sesión
     if 'logged_in' not in st.session_state:
         st.session_state.logged_in = False
