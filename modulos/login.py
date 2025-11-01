@@ -1,29 +1,30 @@
 import streamlit as st
+from config.conexion import verify_user
 
 def show_login():
     """
-    Muestra el formulario de login SIMPLIFICADO para testing
+    Muestra el formulario de login CONECTADO A BD REAL
     """
     st.title("🔐 Sistema de Gestión - Login")
     
-    # 🔥 LOGIN SIMPLIFICADO PARA TESTING - ELIMINAR LUEGO
     with st.form("login_form"):
-        username = st.text_input("Usuario", value="admin", placeholder="Ingrese 'admin'")
-        password = st.text_input("Contraseña", type="password", value="admin123", placeholder="Ingrese 'admin123'")
+        username = st.text_input("Usuario", placeholder="Ingrese su usuario")
+        password = st.text_input("Contraseña", type="password", placeholder="Ingrese su contraseña")
         submit = st.form_submit_button("Iniciar Sesión")
         
         if submit:
-            # Credenciales hardcodeadas para testing
-            if username == "admin" and password == "admin123":
+            if not username or not password:
+                st.error("❌ Por favor ingrese usuario y contraseña")
+                return False
+                
+            user = verify_user(username, password)
+            
+            if user:
                 st.session_state.logged_in = True
-                st.session_state.user = {
-                    "usuario": "admin", 
-                    "email": "admin@example.com",
-                    "id": 1
-                }
-                st.success("✅ ¡Login exitoso! (Modo testing)")
+                st.session_state.user = user
+                st.success(f"✅ Bienvenido {user['usuario']}!")
                 st.rerun()
             else:
-                st.error("❌ Use: Usuario: 'admin' / Contraseña: 'admin123'")
+                st.error("❌ Usuario o contraseña incorrectos")
                 
     return st.session_state.get('logged_in', False)
