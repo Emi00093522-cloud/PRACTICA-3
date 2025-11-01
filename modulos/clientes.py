@@ -32,7 +32,7 @@ def ver_clientes():
                 
                 # Mostrar en forma de tarjetas
                 for cliente in clientes:
-                    with st.expander(f"👤 {cliente['nombre']} - ID: {cliente['id']}", expanded=False):
+                    with st.expander(f"👤 {cliente['nombre']} - ID: {cliente['id_cliente']}", expanded=False):
                         col1, col2, col3 = st.columns([2, 1, 1])
                         
                         with col1:
@@ -42,12 +42,13 @@ def ver_clientes():
                                 st.write(f"**Dirección:** {cliente['direccion']}")
                         
                         with col2:
-                            st.write(f"**ID:** {cliente['id']}")
-                            st.write(f"**Registro:** {cliente['fecha_registro'].strftime('%d/%m/%Y')}")
+                            st.write(f"**ID:** {cliente['id_cliente']}")
+                            if cliente['fecha_registro']:
+                                st.write(f"**Registro:** {cliente['fecha_registro'].strftime('%d/%m/%Y')}")
                         
                         with col3:
-                            if st.button("🗑️ Eliminar", key=f"del_{cliente['id']}"):
-                                eliminar_cliente(cliente['id'])
+                            if st.button("🗑️ Eliminar", key=f"del_{cliente['id_cliente']}"):
+                                eliminar_cliente(cliente['id_cliente'])
             else:
                 st.info("📝 No hay clientes registrados en el sistema")
                 
@@ -63,6 +64,7 @@ def agregar_cliente():
     """
     st.subheader("Agregar Nuevo Cliente")
     
+    # ✅ USAR st.form CON clear_on_submit=True
     with st.form("cliente_form", clear_on_submit=True):
         nombre = st.text_input("Nombre completo *", placeholder="Ej: Juan Pérez")
         email = st.text_input("Email", placeholder="Ej: juan@email.com")
@@ -80,12 +82,24 @@ def agregar_cliente():
             if conn:
                 try:
                     cursor = conn.cursor()
+                    
+                    # ✅ VERIFICAR SI EL CLIENTE YA EXISTE (por email)
+                    if email.strip():
+                        cursor.execute("SELECT id_cliente FROM clientes WHERE email = %s", (email.strip(),))
+                        if cursor.fetchone():
+                            st.error("❌ Ya existe un cliente con ese email")
+                            return
+                    
+                    # ✅ INSERTAR NUEVO CLIENTE
                     cursor.execute(
-                        "INSERT INTO clientes (nombre, email, telefono, direccion) VALUES (%s, %s, %s, %s)",
+                        "INSERT INTO clientes (nombre, email, telefono, direccion, fecha_registro) VALUES (%s, %s, %s, %s, NOW())",
                         (nombre.strip(), email.strip() if email else None, telefono.strip() if telefono else None, direccion.strip() if direccion else None)
                     )
                     conn.commit()
                     st.success("✅ Cliente agregado correctamente")
+                    st.balloons()
+                    
+                    # ✅ REDIRECCIÓN CON DELAY PARA EVITAR DUPLICADOS
                     st.rerun()
                     
                 except Exception as e:
@@ -102,7 +116,7 @@ def eliminar_cliente(cliente_id):
     if conn:
         try:
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM clientes WHERE id = %s", (cliente_id,))
+            cursor.execute("DELETE FROM clientes WHERE id_cliente = %s", (cliente_id,))
             conn.commit()
             st.success("✅ Cliente eliminado correctamente")
             st.rerun()
