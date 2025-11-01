@@ -2,9 +2,6 @@ import mysql.connector
 import streamlit as st
 
 def get_connection():
-    """
-    Establece conexión con la base de datos en Clever Cloud
-    """
     try:
         connection = mysql.connector.connect(
             host='bamwzuzf0b3jk0jwtius-mysql.services.clever-cloud.com',
@@ -19,22 +16,23 @@ def get_connection():
         return None
 
 def verify_user(username, password):
-    """
-    Verifica las credenciales del usuario en la base de datos
-    """
     conn = get_connection()
     if conn:
         try:
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT * FROM USUARIO WHERE usuario = %s", (username,))
+            # 🔥 CAMBIO: Usar 'Usuario' en lugar de 'USUARIO'
+            cursor.execute("SELECT * FROM Usuario WHERE usuario = %s", (username,))
             user = cursor.fetchone()
             
             if user:
-                # En producción usar bcrypt para verificar contraseñas
-                # Por simplicidad, asumimos que la verificación es correcta
-                return user
+                # Verificación simple de contraseña (para testing)
+                if user['Password'] == password:  # 🔥 CAMBIO: 'Password' con P mayúscula
+                    return user
+            return None
+            
         except mysql.connector.Error as e:
             st.error(f"Error verificando usuario: {e}")
+            return None
         finally:
             cursor.close()
             conn.close()
