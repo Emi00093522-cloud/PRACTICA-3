@@ -1,46 +1,82 @@
 import mysql.connector
+from mysql.connector import Error
 import streamlit as st
 
 def get_connection():
+    """
+    Establece conexión con la base de datos Clever Cloud
+    """
     try:
         connection = mysql.connector.connect(
             host='bamwzuzf0b3jk0jwtius-mysql.services.clever-cloud.com',
-            user='uuji5eicsayhs6o0',
-            password='IoZiOb8QZZ3HeaxfFBEJ',
             database='bamwzuzf0b3jk0jwtius',
-            port=3306
+            user='uuj5etc',
+            password='your_password_here'  # Reemplaza con tu password real
         )
-        return connection
-    except mysql.connector.Error as e:
-        st.error(f"Error conectando a la base de datos: {e}")
+        
+        if connection.is_connected():
+            return connection
+            
+    except Error as e:
+        st.error(f"❌ Error de conexión: {e}")
         return None
 
 def verify_user(username, password):
     """
-    Función de verificación CONECTADA A LA BASE DE DATOS REAL
+    Verifica las credenciales del usuario en la tabla Usuario
+    ✅ CORREGIDO: Usa los nombres correctos de columnas (Usuario, Password)
     """
-    conn = get_connection()
-    if conn:
-        try:
+    try:
+        conn = get_connection()
+        if conn:
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT * FROM Usuario WHERE usuario = %s", (username,))
+            
+            # ✅ CONSULTA CORREGIDA - NOMBRES EXACTOS DE COLUMNAS
+            query = "SELECT Id_usuario, Usuario, email FROM Usuario WHERE Usuario = %s AND Password = %s"
+            cursor.execute(query, (username, password))
             user = cursor.fetchone()
             
-            if user:
-                # Verificar contraseña
-                if user.get('password') == password:
-                    return user
-                else:
-                    st.error("❌ Contraseña incorrecta")
-                    return None
-            else:
-                st.error("❌ Usuario no encontrado")
-                return None
-                
-        except mysql.connector.Error as e:
-            st.error(f"Error verificando usuario: {e}")
-            return None
-        finally:
             cursor.close()
             conn.close()
-    return None
+            
+            if user:
+                # ✅ RETORNAR OBJETO COMPATIBLE CON TU CÓDIGO
+                return {
+                    'id': user['Id_usuario'],
+                    'usuario': user['Usuario'],
+                    'email': user['email']
+                }
+            return None
+            
+        return None
+        
+    except Exception as e:
+        st.error(f"❌ Error verificando usuario: {e}")
+        return None
+
+# Función de prueba para verificar que todo funciona
+def test_connection():
+    """
+    Función de prueba para verificar la conexión y estructura
+    """
+    try:
+        conn = get_connection()
+        if conn:
+            cursor = conn.cursor(dictionary=True)
+            
+            # Verificar datos en la tabla Usuario
+            cursor.execute("SELECT * FROM Usuario")
+            users = cursor.fetchall()
+            
+            st.write("### 📊 Usuarios en la base de datos:")
+            for user in users:
+                st.write(f"- ID: {user['Id_usuario']}, Usuario: {user['Usuario']}, Email: {user['email']}")
+            
+            cursor.close()
+            conn.close()
+            return True
+        return False
+        
+    except Exception as e:
+        st.error(f"❌ Error en prueba: {e}")
+        return False
