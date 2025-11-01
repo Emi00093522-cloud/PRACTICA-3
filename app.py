@@ -1,9 +1,20 @@
 import streamlit as st
-from modules.login import show_login
-from modules.menu import show_menu
-from modules.clientes import show_clientes
-from modules.productos import show_productos
-from modules.ventas import show_ventas
+import sys
+import os
+
+# 🔥 SOLUCIÓN: Agregar esta línea para que Streamlit Cloud encuentre los módulos
+sys.path.append(os.path.join(os.path.dirname(__file__)))
+
+try:
+    from modules.login import show_login
+    from modules.menu import show_menu
+    from modules.clientes import show_clientes
+    from modules.productos import show_productos
+    from modules.ventas import show_ventas
+except ImportError as e:
+    st.error(f"Error importando módulos: {e}")
+    st.error("Asegúrate de que la estructura de carpetas sea correcta")
+    st.stop()
 
 # Configuración de la página
 st.set_page_config(
