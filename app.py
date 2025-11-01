@@ -15,21 +15,63 @@ def load_module(module_name, file_path):
     try:
         spec = importlib.util.spec_from_file_location(module_name, file_path)
         module = importlib.util.module_from_spec(spec)
+        
+        # 🔥 SOLUCIÓN: Hacer que 'config' esté disponible antes de ejecutar
+        if 'config' not in sys.modules:
+            # Crear un módulo config ficticio
+            import types
+            config_module = types.ModuleType('config')
+            sys.modules['config'] = config_module
+        
         spec.loader.exec_module(module)
         return module
     except Exception as e:
         st.error(f"❌ Error cargando {module_name}: {e}")
         return None
 
-# Cargar módulos manualmente
+# 🔥 CARGAR CONEXIÓN PRIMERO
 try:
-    # 🔥 USAR LA ESTRUCTURA REAL: modulos/ y modulos/config/
-    login_module = load_module('login', os.path.join(current_dir, 'modulos', 'login.py'))
-    menu_module = load_module('menu', os.path.join(current_dir, 'modulos', 'menu.py'))
-    clientes_module = load_module('clientes', os.path.join(current_dir, 'modulos', 'clientes.py'))
-    productos_module = load_module('productos', os.path.join(current_dir, 'modulos', 'productos.py'))
-    ventas_module = load_module('ventas', os.path.join(current_dir, 'modulos', 'ventas.py'))
+    st.info("🔄 Cargando módulo de conexión...")
     conexion_module = load_module('conexion', os.path.join(current_dir, 'modulos', 'config', 'conexion.py'))
+    
+    # Hacer que conexion esté disponible como config.conexion
+    if 'config' not in sys.modules:
+        import types
+        sys.modules['config'] = types.ModuleType('config')
+    
+    sys.modules['config.conexion'] = conexion_module
+    get_connection = conexion_module.get_connection
+    verify_user = conexion_module.verify_user
+    
+    st.success("✅ Módulo de conexión cargado")
+    
+except Exception as e:
+    st.error(f"❌ Error cargando conexión: {e}")
+    st.stop()
+
+# 🔥 CARGAR MÓDULOS DE modulos/
+try:
+    st.info("🔄 Cargando módulos de la aplicación...")
+    
+    # Función especial para cargar módulos que necesitan config
+    def load_app_module(module_name, file_path):
+        spec = importlib.util.spec_from_file_location(module_name, file_path)
+        module = importlib.util.module_from_spec(spec)
+        
+        # Inyectar config.conexion en el namespace del módulo
+        module.__dict__['config'] = sys.modules['config']
+        module.__dict__['get_connection'] = get_connection
+        module.__dict__['verify_user'] = verify_user
+        
+        spec.loader.exec_module(module)
+        return module
+    
+    # Cargar módulos de la aplicación
+    login_module = load_app_module('login', os.path.join(current_dir, 'modulos', 'login.py'))
+    menu_module = load_app_module('menu', os.path.join(current_dir, 'modulos', 'menu.py'))
+    clientes_module = load_app_module('clientes', os.path.join(current_dir, 'modulos', 'clientes.py'))
+    productos_module = load_app_module('productos', os.path.join(current_dir, 'modulos', 'productos.py'))
+    ventas_module = load_app_module('ventas', os.path.join(current_dir, 'modulos', 'ventas.py'))
     
     # Asignar funciones
     show_login = login_module.show_login
@@ -37,12 +79,11 @@ try:
     show_clientes = clientes_module.show_clientes
     show_productos = productos_module.show_productos
     show_ventas = ventas_module.show_ventas
-    get_connection = conexion_module.get_connection
     
     st.success("✅ Todos los módulos cargados correctamente")
     
 except Exception as e:
-    st.error(f"❌ Error crítico cargando módulos: {e}")
+    st.error(f"❌ Error cargando módulos: {e}")
     st.stop()
 
 # Configuración de la página
