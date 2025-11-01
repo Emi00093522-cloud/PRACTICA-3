@@ -18,10 +18,26 @@ def show_login():
                 return False
                 
             user = verify_user(username, password)
+            
+            # 🔥 DEBUG: Mostrar información del usuario
             if user:
+                st.write("🔍 DEBUG - Estructura del usuario:", user)
+                
+                # 🔥 SOLUCIÓN: Usar la clave correcta basada en la estructura real
+                if 'usuario' in user:
+                    nombre_usuario = user['usuario']
+                elif 'Usuario' in user:
+                    nombre_usuario = user['Usuario']
+                elif 'user' in user:
+                    nombre_usuario = user['user']
+                else:
+                    # Si no encontramos la clave, usar la primera disponible
+                    claves_disponibles = list(user.keys())
+                    nombre_usuario = user[claves_disponibles[1]] if len(claves_disponibles) > 1 else username
+                
                 st.session_state.logged_in = True
                 st.session_state.user = user
-                st.success(f"✅ Bienvenido {user['usuario']}!")
+                st.success(f"✅ Bienvenido {nombre_usuario}!")
                 st.rerun()
             else:
                 st.error("❌ Usuario o contraseña incorrectos")
