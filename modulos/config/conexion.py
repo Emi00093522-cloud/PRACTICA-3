@@ -17,8 +17,30 @@ def get_connection():
 
 def verify_user(username, password):
     """
-    Función de verificación - COMENTADA TEMPORALMENTE
+    Función de verificación CONECTADA A LA BASE DE DATOS REAL
     """
-    # 🔥 MODO TESTING ACTIVADO
-    st.info("🔧 Modo testing activado - Base de datos deshabilitada")
+    conn = get_connection()
+    if conn:
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM Usuario WHERE usuario = %s", (username,))
+            user = cursor.fetchone()
+            
+            if user:
+                # Verificar contraseña
+                if user.get('password') == password:
+                    return user
+                else:
+                    st.error("❌ Contraseña incorrecta")
+                    return None
+            else:
+                st.error("❌ Usuario no encontrado")
+                return None
+                
+        except mysql.connector.Error as e:
+            st.error(f"Error verificando usuario: {e}")
+            return None
+        finally:
+            cursor.close()
+            conn.close()
     return None
