@@ -1,31 +1,46 @@
 import streamlit as st
 import sys
 import os
+import importlib.util
 
-# 🔥 SOLUCIÓN DEFINITIVA: Configurar paths explícitamente
+# Configuración de paths
 current_dir = os.path.dirname(os.path.abspath(__file__))
-modules_path = os.path.join(current_dir, 'modulos')
-config_path = os.path.join(current_dir, 'config')
-
-# Agregar ambos paths al sistema
 sys.path.insert(0, current_dir)
-sys.path.insert(0, modules_path)
-sys.path.insert(0, config_path)
 
-st.write("🔍 Debug: Current directory:", current_dir)
-st.write("🔍 Debug: sys.path:", sys.path)
+st.success("✅ Paths configurados correctamente")
 
+# Función para cargar módulos manualmente
+def load_module(module_name, file_path):
+    """Carga un módulo desde una ruta específica"""
+    try:
+        spec = importlib.util.spec_from_file_location(module_name, file_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    except Exception as e:
+        st.error(f"❌ Error cargando {module_name}: {e}")
+        return None
+
+# Cargar módulos manualmente
 try:
-    # Intentar importar los módulos
-    from modules.login import show_login
-    from modules.menu import show_menu
-    from modules.clientes import show_clientes
-    from modules.productos import show_productos
-    from modules.ventas import show_ventas
-    st.success("✅ Módulos importados correctamente")
-except ImportError as e:
-    st.error(f"❌ Error importando módulos: {e}")
-    st.error("Por favor verifica la estructura de carpetas")
+    # Cargar módulos de modules/
+    login_module = load_module('login', os.path.join(current_dir, 'modules', 'login.py'))
+    menu_module = load_module('menu', os.path.join(current_dir, 'modules', 'menu.py'))
+    clientes_module = load_module('clientes', os.path.join(current_dir, 'modules', 'clientes.py'))
+    productos_module = load_module('productos', os.path.join(current_dir, 'modules', 'productos.py'))
+    ventas_module = load_module('ventas', os.path.join(current_dir, 'modules', 'ventas.py'))
+    
+    # Asignar funciones
+    show_login = login_module.show_login
+    show_menu = menu_module.show_menu
+    show_clientes = clientes_module.show_clientes
+    show_productos = productos_module.show_productos
+    show_ventas = ventas_module.show_ventas
+    
+    st.success("✅ Todos los módulos cargados correctamente")
+    
+except Exception as e:
+    st.error(f"❌ Error crítico cargando módulos: {e}")
     st.stop()
 
 # Configuración de la página
@@ -43,46 +58,50 @@ def show_dashboard():
     st.title("📊 Dashboard Principal")
     
     try:
-        from config.conexion import get_connection
-    except ImportError as e:
-        st.error(f"Error importando conexión: {e}")
-        return
-    
-    conn = get_connection()
-    if conn:
-        try:
-            cursor = conn.cursor()
-            
-            # Obtener estadísticas
-            cursor.execute("SELECT COUNT(*) FROM clientes")
-            total_clientes = cursor.fetchone()[0]
-            
-            cursor.execute("SELECT COUNT(*) FROM productos")
-            total_productos = cursor.fetchone()[0]
-            
-            cursor.execute("SELECT SUM(total) FROM ventas")
-            total_ventas = cursor.fetchone()[0] or 0
-            
-            cursor.execute("SELECT COUNT(*) FROM ventas")
-            numero_ventas = cursor.fetchone()[0]
-            
-            # Mostrar métricas
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.metric("👥 Total Clientes", total_clientes)
-            with col2:
-                st.metric("📦 Total Productos", total_productos)
-            with col3:
-                st.metric("💰 Total Ventas", f"${total_ventas:,.2f}")
-            with col4:
-                st.metric("🛒 N° de Ventas", numero_ventas)
+        # Cargar conexión manualmente
+        conexion_module = load_module('conexion', os.path.join(current_dir, 'config', 'conexion.py'))
+        get_connection = conexion_module.get_connection
+        
+        conn = get_connection()
+        if conn:
+            try:
+                cursor = conn.cursor()
                 
-        except Exception as e:
-            st.error(f"❌ Error cargando dashboard: {e}")
-        finally:
-            cursor.close()
-            conn.close()
+                # Obtener estadísticas
+                cursor.execute("SELECT COUNT(*) FROM clientes")
+                total_clientes = cursor.fetchone()[0]
+                
+                cursor.execute("SELECT COUNT(*) FROM productos")
+                total_productos = cursor.fetchone()[0]
+                
+                cursor.execute("SELECT SUM(total) FROM ventas")
+                total_ventas = cursor.fetchone()[0] or 0
+                
+                cursor.execute("SELECT COUNT(*) FROM ventas")
+                numero_ventas = cursor.fetchone()[0]
+                
+                # Mostrar métricas
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    st.metric("👥 Total Clientes", total_clientes)
+                with col2:
+                    st.metric("📦 Total Productos", total_productos)
+                with col3:
+                    st.metric("💰 Total Ventas", f"${total_ventas:,.2f}")
+                with col4:
+                    st.metric("🛒 N° de Ventas", numero_ventas)
+                    
+            except Exception as e:
+                st.error(f"❌ Error cargando dashboard: {e}")
+            finally:
+                cursor.close()
+                conn.close()
+        else:
+            st.warning("⚠️ No se pudo conectar a la base de datos")
+                
+    except Exception as e:
+        st.error(f"❌ Error con la conexión: {e}")
     
     st.write("---")
     st.subheader("Bienvenido al Sistema de Gestión")
