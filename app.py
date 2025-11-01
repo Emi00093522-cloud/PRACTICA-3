@@ -2,17 +2,30 @@ import streamlit as st
 import sys
 import os
 
-# 🔥 SOLUCIÓN CRÍTICA: Configurar el path para Streamlit Cloud
-sys.path.append(os.path.dirname(__file__))
+# 🔥 SOLUCIÓN DEFINITIVA: Configurar paths explícitamente
+current_dir = os.path.dirname(os.path.abspath(__file__))
+modules_path = os.path.join(current_dir, 'modules')
+config_path = os.path.join(current_dir, 'config')
+
+# Agregar ambos paths al sistema
+sys.path.insert(0, current_dir)
+sys.path.insert(0, modules_path)
+sys.path.insert(0, config_path)
+
+st.write("🔍 Debug: Current directory:", current_dir)
+st.write("🔍 Debug: sys.path:", sys.path)
 
 try:
+    # Intentar importar los módulos
     from modules.login import show_login
     from modules.menu import show_menu
     from modules.clientes import show_clientes
     from modules.productos import show_productos
     from modules.ventas import show_ventas
+    st.success("✅ Módulos importados correctamente")
 except ImportError as e:
-    st.error(f"Error importando módulos: {e}")
+    st.error(f"❌ Error importando módulos: {e}")
+    st.error("Por favor verifica la estructura de carpetas")
     st.stop()
 
 # Configuración de la página
