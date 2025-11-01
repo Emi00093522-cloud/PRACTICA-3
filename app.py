@@ -1,33 +1,120 @@
-import mysql.connector
-import os
 import streamlit as st
+from modules.login import show_login
+from modules.menu import show_menu
+from modules.clientes import show_clientes
+from modules.productos import show_productos
+from modules.ventas import show_ventas
 
-# Obtener las credenciales de las variables de entorno (seguridad)
-host = os.getenv("DB_HOST", "bamwzuzf0b3jk0jwtius-mysql.services.clever-cloud.com")
-user = os.getenv("DB_USER", "uuji5eicsayhs6o0")
-password = os.getenv("DB_PASSWORD", "IoZiOb8QZZ3HeaxfFBEJ")
-database = os.getenv("DB_NAME", " bamwzuzf0b3jk0jwtius")
+# Configuración de la página
+st.set_page_config(
+    page_title="Sistema de Gestión",
+    page_icon="🏢",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# Intentar establecer la conexión
-try:
-    conn = mysql.connector.connect(
-        host=host,
-        user=user,
-        password=password,
-        database=database
-    )
+def show_dashboard():
+    """
+    Muestra el dashboard principal
+    """
+    st.title("📊 Dashboard Principal")
     
-    # Verificar si la conexión fue exitosa
-    if conn.is_connected():
-        st.success("Conexión exitosa a la base de datos MySQL.")
-    else:
-        st.error("No se pudo conectar a la base de datos.")
-        
-except mysql.connector.Error as err:
-    # Mostrar el error si la conexión falla
-    st.error(f"Error al conectar con la base de datos: {err}")
+    from config.conexion import get_connection
+    
+    conn = get_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            
+            # Obtener estadísticas
+            cursor.execute("SELECT COUNT(*) FROM clientes")
+            total_clientes = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT COUNT(*) FROM productos")
+            total_productos = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT SUM(total) FROM ventas")
+            total_ventas = cursor.fetchone()[0] or 0
+            
+            cursor.execute("SELECT COUNT(*) FROM ventas")
+            numero_ventas = cursor.fetchone()[0]
+            
+            # Mostrar métricas
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.metric("👥 Total Clientes", total_clientes)
+            with col2:
+                st.metric("📦 Total Productos", total_productos)
+            with col3:
+                st.metric("💰 Total Ventas", f"${total_ventas:,.2f}")
+            with col4:
+                st.metric("🛒 N° de Ventas", numero_ventas)
+                
+        except Exception as e:
+            st.error(f"❌ Error cargando dashboard: {e}")
+        finally:
+            cursor.close()
+            conn.close()
+    
+    st.write("---")
+    st.subheader("Bienvenido al Sistema de Gestión")
+    st.write("""
+    Utilice el menú lateral para navegar entre las diferentes secciones del sistema:
+    
+    - **👥 Gestión de Clientes**: Administre la información de sus clientes
+    - **📦 Gestión de Productos**: Controle su inventario de productos
+    - **💰 Gestión de Ventas**: Registre y consulte las ventas realizadas
+    """)
 
-finally:
-    if conn.is_connected():
-        # Cerrar la conexión
-        conn.close()
+def show_config():
+    """
+    Muestra la configuración del sistema
+    """
+    st.title("⚙️ Configuración del Sistema")
+    
+    st.info(f"**Usuario conectado:** {st.session_state.user['usuario']}")
+    st.info(f"**Base de datos:** Clever Cloud MySQL")
+    
+    st.write("---")
+    st.subheader("Información del Sistema")
+    st.write("""
+    Esta aplicación fue desarrollada como parte de la Tarea #3 y incluye:
+    
+    - ✅ Autenticación de usuarios
+    - ✅ Gestión de clientes, productos y ventas
+    - ✅ Base de datos MySQL en Clever Cloud
+    - ✅ Interfaz amigable con Streamlit
+    """)
+
+def main():
+    """
+    Función principal de la aplicación
+    """
+    # Inicializar estado de sesión
+    if 'logged_in' not in st.session_state:
+        st.session_state.logged_in = False
+    if 'user' not in st.session_state:
+        st.session_state.user = None
+    
+    # Mostrar login si no está autenticado
+    if not st.session_state.logged_in:
+        show_login()
+    else:
+        # Mostrar menú y contenido principal
+        selected_section = show_menu()
+        
+        # Navegación entre módulos
+        if selected_section == "dashboard":
+            show_dashboard()
+        elif selected_section == "clientes":
+            show_clientes()
+        elif selected_section == "productos":
+            show_productos()
+        elif selected_section == "ventas":
+            show_ventas()
+        elif selected_section == "config":
+            show_config()
+
+if __name__ == "__main__":
+    main()
