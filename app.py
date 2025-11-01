@@ -4,7 +4,7 @@ import os
 
 # 🔥 SOLUCIÓN DEFINITIVA: Configurar paths explícitamente
 current_dir = os.path.dirname(os.path.abspath(__file__))
-modules_path = os.path.join(current_dir, 'modules')
+modules_path = os.path.join(current_dir, 'modulos')
 config_path = os.path.join(current_dir, 'config')
 
 # Agregar ambos paths al sistema
