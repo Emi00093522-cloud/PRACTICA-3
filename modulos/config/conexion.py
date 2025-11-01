@@ -8,9 +8,9 @@ def get_connection():
     """
     try:
         connection = mysql.connector.connect(
-            host='bamwzuzf0b3jk0jwtius-mysql.services.clever-cloud.com',
+            host=' bamwzuzf0b3jk0jwtius-mysql.services.clever-cloud.com',
             database='bamwzuzf0b3jk0jwtius',
-            user='uuj5etc',
+            user='uuji5eicsayhs6o0',
             password='your_password_here'  # Reemplaza con tu password real
         )
         
