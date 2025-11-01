@@ -3,6 +3,14 @@ import sys
 import os
 import importlib.util
 
+# 🔥 CONFIGURACIÓN DE PÁGINA DEBE SER PRIMERO
+st.set_page_config(
+    page_title="Sistema de Gestión",
+    page_icon="🏢",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 # Configuración de paths
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
@@ -85,14 +93,6 @@ try:
 except Exception as e:
     st.error(f"❌ Error cargando módulos: {e}")
     st.stop()
-
-# Configuración de la página
-st.set_page_config(
-    page_title="Sistema de Gestión",
-    page_icon="🏢",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 
 def show_dashboard():
     """
