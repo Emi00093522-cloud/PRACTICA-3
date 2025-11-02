@@ -70,56 +70,49 @@ def ver_ventas():
 
 def nueva_venta():
     """
-    Formulario para registrar nueva venta
+    Formulario para registrar nueva venta - VERSIÓN SIMPLIFICADA
     """
     st.subheader("Registrar Nueva Venta")
     
-    # ✅ CERRAR LA CONEXIÓN ANTERIOR ANTES DE CREAR UNA NUEVA
+    # ✅ CARGAR DATOS SOLO UNA VEZ
     conn = get_connection()
-    if conn:
-        try:
-            # Obtener datos necesarios
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT id_cliente, nombre FROM clientes ORDER BY nombre")
-            clientes = cursor.fetchall()
-            
-            cursor.execute("SELECT id_producto, nombre, precio, stock FROM productos WHERE stock > 0 ORDER BY nombre")
-            productos = cursor.fetchall()
-            
-            # ✅ CERRAR CURSOR TEMPRANO
-            cursor.close()
-            
-            if not clientes:
-                st.warning("⚠️ No hay clientes registrados. Primero registre al menos un cliente.")
-                conn.close()
-                return
-                
-            if not productos:
-                st.warning("⚠️ No hay productos con stock disponible.")
-                conn.close()
-                return
-            
-        except Exception as e:
-            st.error(f"❌ Error cargando datos: {e}")
-            conn.close()
-            return
+    if not conn:
+        st.error("❌ No se pudo conectar a la base de datos")
+        return
     
-    # ✅ MOVER EL FORMULARIO FUERA DEL BLOQUE try PARA EVITAR EJECUCIONES MÚLTIPLES
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT id_cliente, nombre FROM clientes ORDER BY nombre")
+        clientes = cursor.fetchall()
+        
+        cursor.execute("SELECT id_producto, nombre, precio, stock FROM productos WHERE stock > 0 ORDER BY nombre")
+        productos = cursor.fetchall()
+        
+    except Exception as e:
+        st.error(f"❌ Error cargando datos: {e}")
+        return
+    finally:
+        cursor.close()
+        conn.close()
+    
+    if not clientes:
+        st.warning("⚠️ No hay clientes registrados. Primero registre al menos un cliente.")
+        return
+        
+    if not productos:
+        st.warning("⚠️ No hay productos con stock disponible.")
+        return
+    
+    # ✅ FORMULARIO SIMPLIFICADO
     with st.form("venta_form", clear_on_submit=True):
         # Selector de cliente
         cliente_options = {f"{c['nombre']}": c['id_cliente'] for c in clientes}
-        cliente_seleccionado = st.selectbox(
-            "Cliente *",
-            options=list(cliente_options.keys())
-        )
+        cliente_seleccionado = st.selectbox("Cliente *", options=list(cliente_options.keys()))
         cliente_id = cliente_options[cliente_seleccionado]
         
         # Selector de producto
         producto_options = {f"{p['nombre']} - ${p['precio']:.2f} (Stock: {p['stock']})": p['id_producto'] for p in productos}
-        producto_seleccionado = st.selectbox(
-            "Producto *",
-            options=list(producto_options.keys())
-        )
+        producto_seleccionado = st.selectbox("Producto *", options=list(producto_options.keys()))
         producto_id = producto_options[producto_seleccionado]
         
         # Cantidad
@@ -135,45 +128,40 @@ def nueva_venta():
         submitted = st.form_submit_button("💾 Registrar Venta")
         
         if submitted:
-            # ✅ CREAR NUEVA CONEXIÓN ESPECÍFICA PARA EL INSERT
+            # ✅ CONEXIÓN SEPARADA SOLO PARA EL INSERT
             conn_venta = get_connection()
-            if conn_venta:
-                try:
-                    cursor_venta = conn_venta.cursor()
-                    
-                    # ✅ VERIFICAR SI LA VENTA YA EXISTE (prevención adicional)
-                    cursor_venta.execute(
-                        "SELECT id_venta FROM ventas WHERE id_cliente = %s AND id_producto = %s AND cantidad = %s AND total = %s",
-                        (cliente_id, producto_id, cantidad, total)
-                    )
-                    if cursor_venta.fetchone():
-                        st.error("❌ Esta venta ya fue registrada anteriormente")
-                        return
-                    
-                    # Registrar venta
-                    cursor_venta.execute(
-                        "INSERT INTO ventas (id_cliente, id_producto, cantidad, total) VALUES (%s, %s, %s, %s)",
-                        (cliente_id, producto_id, cantidad, total)
-                    )
-                    
-                    # Actualizar stock
-                    cursor_venta.execute(
-                        "UPDATE productos SET stock = stock - %s WHERE id_producto = %s",
-                        (cantidad, producto_id)
-                    )
-                    
-                    conn_venta.commit()
-                    st.success("✅ Venta registrada correctamente")
-                    st.balloons()
-                    
-                    # ✅ USAR st.rerun() SOLO UNA VEZ
-                    st.rerun()
-                    
-                except Exception as e:
-                    st.error(f"❌ Error registrando venta: {e}")
-                finally:
-                    cursor_venta.close()
-                    conn_venta.close()
+            if not conn_venta:
+                st.error("❌ No se pudo conectar para registrar la venta")
+                return
+                
+            try:
+                cursor_venta = conn_venta.cursor()
+                
+                # Registrar venta
+                cursor_venta.execute(
+                    "INSERT INTO ventas (id_cliente, id_producto, cantidad, total) VALUES (%s, %s, %s, %s)",
+                    (cliente_id, producto_id, cantidad, total)
+                )
+                
+                # Actualizar stock
+                cursor_venta.execute(
+                    "UPDATE productos SET stock = stock - %s WHERE id_producto = %s",
+                    (cantidad, producto_id)
+                )
+                
+                conn_venta.commit()
+                st.success("✅ Venta registrada correctamente")
+                st.balloons()
+                
+                # ✅ LIMPIAR EL FORMULARIO Y ESPERAR
+                st.info("🔄 La página se recargará automáticamente...")
+                st.rerun()
+                
+            except Exception as e:
+                st.error(f"❌ Error registrando venta: {e}")
+            finally:
+                cursor_venta.close()
+                conn_venta.close()
 
 def eliminar_venta(venta_id):
     """
