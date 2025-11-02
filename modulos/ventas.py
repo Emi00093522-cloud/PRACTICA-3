@@ -160,7 +160,7 @@ def nueva_venta():
                 conn_venta.commit()
                 
                 st.success("✅ Venta registrada correctamente")
-                st.balloons()
+                # ❌ ELIMINADO: st.balloons() - Los globos ya no aparecerán
                 
                 # ✅ NO HACER rerun() AUTOMÁTICO - Mostrar mensaje y botón
                 st.info("💡 La venta se ha registrado. Puedes verla en la pestaña 'Ver Ventas'")
