@@ -1,183 +1,157 @@
 import streamlit as st
 from config.conexion import get_connection
 
-def show_ventas():
+def show_productos():
     """
-    Módulo de gestión de ventas
+    Módulo de gestión de productos
     """
-    st.header("💰 Gestión de Ventas")
+    st.header("📦 Gestión de Productos")
     
-    tab1, tab2 = st.tabs(["📋 Ver Ventas", "➕ Nueva Venta"])
+    tab1, tab2 = st.tabs(["📋 Ver Productos", "➕ Agregar Producto"])
     
     with tab1:
-        ver_ventas()
+        ver_productos()
     
     with tab2:
-        nueva_venta()
+        agregar_producto()
 
-def ver_ventas():
+def ver_productos():
     """
-    Muestra el historial de ventas
+    Muestra la lista de productos existentes
     """
     conn = get_connection()
     if conn:
         try:
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("""
-                SELECT v.*, c.nombre as cliente_nombre, p.nombre as producto_nombre, p.precio
-                FROM ventas v
-                LEFT JOIN clientes c ON v.id_cliente = c.id_cliente
-                LEFT JOIN productos p ON v.id_producto = p.id_producto
-                ORDER BY v.fecha_venta DESC
-            """)
-            ventas = cursor.fetchall()
+            cursor.execute("SELECT * FROM productos ORDER BY fecha_creacion DESC")
+            productos = cursor.fetchall()
             
-            if ventas:
-                st.subheader(f"Total de ventas registradas: {len(ventas)}")
+            if productos:
+                st.subheader(f"Total de productos: {len(productos)}")
                 
-                total_ventas = sum(venta['total'] for venta in ventas)
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.metric("💰 Total Recaudado", f"${total_ventas:,.2f}")
-                with col2:
-                    st.metric("📈 Número de Ventas", len(ventas))
-                
-                st.write("---")
-                
-                for venta in ventas:
-                    with st.expander(f"🛒 Venta #{venta['id_venta']} - ${venta['total']:.2f} - {venta['fecha_venta'].strftime('%d/%m/%Y')}", expanded=False):
-                        col1, col2 = st.columns(2)
+                for producto in productos:
+                    with st.expander(f"📦 {producto['nombre']} - ${producto['precio']:.2f}", expanded=False):
+                        col1, col2, col3 = st.columns([2, 1.2, 1])
+
                         with col1:
-                            st.write(f"**Cliente:** {venta['cliente_nombre'] or 'N/A'}")
-                            st.write(f"**Producto:** {venta['producto_nombre'] or 'N/A'}")
+                            st.write(f"**Descripción:** {producto['descripcion'] or 'Sin descripción'}")
+                            st.write(f"**Categoría:** {producto['categoria'] or 'Sin categoría'}")
+
                         with col2:
-                            st.write(f"**Cantidad:** {venta['cantidad']}")
-                            st.write(f"**Precio Unitario:** ${venta['precio']:.2f}")
-                            st.write(f"**Fecha:** {venta['fecha_venta'].strftime('%d/%m/%Y %H:%M')}")
-                            
-                        if st.button("🗑️ Eliminar", key=f"del_venta_{venta['id_venta']}"):
-                            eliminar_venta(venta['id_venta'])
+                            st.write(f"**Precio:** ${producto['precio']:.2f}")
+                            st.write(f"**Stock actual:** {producto['stock']} unidades")
+
+                            # --- Agregar stock ---
+                            cantidad = st.number_input(
+                                "Cantidad a agregar",
+                                min_value=1,
+                                step=1,
+                                key=f"add_qty_{producto['id_producto']}"
+                            )
+                            add_stock_btn = st.button(
+                                "➕ Agregar stock",
+                                key=f"btn_add_stock_{producto['id_producto']}"
+                            )
+
+                            if add_stock_btn and not st.session_state.get(f"added_{producto['id_producto']}", False):
+                                agregar_stock(producto['id_producto'], cantidad)
+                                st.session_state[f"added_{producto['id_producto']}"] = True
+                                st.rerun()
+
+                        with col3:
+                            st.write(f"**ID:** {producto['id_producto']}")
+                            if producto['fecha_creacion']:
+                                st.write(f"**Creado:** {producto['fecha_creacion'].strftime('%d/%m/%Y')}")
+
+                            if st.button("🗑️ Eliminar", key=f"del_prod_{producto['id_producto']}"):
+                                eliminar_producto(producto['id_producto'])
             else:
-                st.info("📝 No hay ventas registradas")
+                st.info("📝 No hay productos registrados")
                 
         except Exception as e:
-            st.error(f"❌ Error cargando ventas: {e}")
+            st.error(f"❌ Error cargando productos: {e}")
         finally:
             cursor.close()
             conn.close()
 
-def nueva_venta():
+def agregar_producto():
     """
-    Formulario para registrar nueva venta (sin duplicaciones)
+    Formulario para agregar nuevo producto
     """
-    st.subheader("Registrar Nueva Venta")
-
-    # 🚫 Evitar que se repita tras recargar
-    if st.session_state.get("venta_registrada", False):
-        st.session_state["venta_registrada"] = False
-        st.rerun()
-        return
+    st.subheader("Agregar Nuevo Producto")
     
-    conn = get_connection()
-    if not conn:
-        st.error("❌ No se pudo conectar a la base de datos")
-        return
-    
-    try:
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT id_cliente, nombre FROM clientes ORDER BY nombre")
-        clientes = cursor.fetchall()
+    with st.form("producto_form", clear_on_submit=True):
+        nombre = st.text_input("Nombre del producto *", placeholder="Ej: Laptop Gaming")
+        descripcion = st.text_area("Descripción", placeholder="Ej: Laptop para gaming con 16GB RAM")
+        precio = st.number_input("Precio *", min_value=0.0, step=0.1, format="%.2f")
+        stock = st.number_input("Stock *", min_value=0, step=1)
+        categoria = st.selectbox("Categoría", ["", "Electrónicos", "Ropa", "Hogar", "Deportes", "Otros"])
         
-        cursor.execute("SELECT id_producto, nombre, precio, stock FROM productos WHERE stock > 0 ORDER BY nombre")
-        productos = cursor.fetchall()
-        
-    except Exception as e:
-        st.error(f"❌ Error cargando datos: {e}")
-        return
-    finally:
-        cursor.close()
-        conn.close()
-    
-    if not clientes:
-        st.warning("⚠️ No hay clientes registrados. Primero registre al menos un cliente.")
-        return
-        
-    if not productos:
-        st.warning("⚠️ No hay productos con stock disponible.")
-        return
-    
-    with st.form("venta_form", clear_on_submit=True):
-        cliente_options = {f"{c['nombre']}": c['id_cliente'] for c in clientes}
-        cliente_seleccionado = st.selectbox("Cliente *", options=list(cliente_options.keys()))
-        cliente_id = cliente_options[cliente_seleccionado]
-        
-        producto_options = {f"{p['nombre']} - ${p['precio']:.2f} (Stock: {p['stock']})": p['id_producto'] for p in productos}
-        producto_seleccionado = st.selectbox("Producto *", options=list(producto_options.keys()))
-        producto_id = producto_options[producto_seleccionado]
-        
-        producto_stock = next(p['stock'] for p in productos if p['id_producto'] == producto_id)
-        cantidad = st.number_input("Cantidad *", min_value=1, max_value=producto_stock, step=1)
-        
-        producto_precio = next(p['precio'] for p in productos if p['id_producto'] == producto_id)
-        total = cantidad * producto_precio
-        
-        st.info(f"**Total a pagar:** ${total:.2f}")
-        
-        submitted = st.form_submit_button("💾 Registrar Venta")
+        submitted = st.form_submit_button("💾 Guardar Producto")
         
         if submitted:
-            conn_venta = get_connection()
-            if not conn_venta:
-                st.error("❌ No se pudo conectar para registrar la venta")
+            if not nombre.strip() or precio <= 0:
+                st.error("❌ Nombre y precio son obligatorios (precio debe ser mayor a 0)")
                 return
-            try:
-                cursor_venta = conn_venta.cursor()
-                cursor_venta.execute(
-                    "INSERT INTO ventas (id_cliente, id_producto, cantidad, total) VALUES (%s, %s, %s, %s)",
-                    (cliente_id, producto_id, cantidad, total)
-                )
-                cursor_venta.execute(
-                    "UPDATE productos SET stock = stock - %s WHERE id_producto = %s",
-                    (cantidad, producto_id)
-                )
-                conn_venta.commit()
-                st.success("✅ Venta registrada correctamente")
-                st.balloons()
                 
-                # ✅ Guardar bandera para evitar duplicación al recargar
-                st.session_state["venta_registrada"] = True
-                st.rerun()
-                
-            except Exception as e:
-                st.error(f"❌ Error registrando venta: {e}")
-            finally:
-                cursor_venta.close()
-                conn_venta.close()
+            conn = get_connection()
+            if conn:
+                try:
+                    cursor = conn.cursor()
+                    
+                    # ✅ VERIFICAR SI EL PRODUCTO YA EXISTE
+                    cursor.execute("SELECT id_producto FROM productos WHERE nombre = %s", (nombre.strip(),))
+                    if cursor.fetchone():
+                        st.error("❌ Ya existe un producto con ese nombre")
+                        return
+                    
+                    # ✅ INSERTAR NUEVO PRODUCTO
+                    cursor.execute(
+                        "INSERT INTO productos (nombre, descripcion, precio, stock, categoria) VALUES (%s, %s, %s, %s, %s)",
+                        (nombre.strip(), descripcion.strip() if descripcion else None, precio, stock, categoria if categoria else None)
+                    )
+                    conn.commit()
+                    st.success("✅ Producto agregado correctamente")
+                    st.balloons()
+                    st.rerun()
+                    
+                except Exception as e:
+                    st.error(f"❌ Error guardando producto: {e}")
+                finally:
+                    cursor.close()
+                    conn.close()
 
-def eliminar_venta(venta_id):
+def eliminar_producto(producto_id):
     """
-    Elimina una venta de la base de datos y restaura el stock
+    Elimina un producto de la base de datos
     """
     conn = get_connection()
     if conn:
         try:
             cursor = conn.cursor()
-            cursor.execute("SELECT id_producto, cantidad FROM ventas WHERE id_venta = %s", (venta_id,))
-            venta_info = cursor.fetchone()
-            
-            if venta_info:
-                cursor.execute(
-                    "UPDATE productos SET stock = stock + %s WHERE id_producto = %s",
-                    (venta_info[1], venta_info[0])
-                )
-            
-            cursor.execute("DELETE FROM ventas WHERE id_venta = %s", (venta_id,))
+            cursor.execute("DELETE FROM productos WHERE id_producto = %s", (producto_id,))
             conn.commit()
-            st.success("✅ Venta eliminada correctamente")
+            st.success("✅ Producto eliminado correctamente")
             st.rerun()
-            
         except Exception as e:
-            st.error(f"❌ Error eliminando venta: {e}")
+            st.error(f"❌ Error eliminando producto: {e}")
+        finally:
+            cursor.close()
+            conn.close()
+
+def agregar_stock(producto_id, cantidad):
+    """
+    Suma stock a un producto existente
+    """
+    conn = get_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE productos SET stock = stock + %s WHERE id_producto = %s", (cantidad, producto_id))
+            conn.commit()
+            st.success(f"✅ Se agregaron {cantidad} unidades al producto")
+        except Exception as e:
+            st.error(f"❌ Error agregando stock: {e}")
         finally:
             cursor.close()
             conn.close()
