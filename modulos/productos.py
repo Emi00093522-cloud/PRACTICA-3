@@ -45,8 +45,11 @@ def ver_productos():
                             st.write(f"**ID:** {producto['id']}")
                             st.write(f"**Creado:** {producto['fecha_creacion'].strftime('%d/%m/%Y')}")
                             
+                            # Usar estado de sesión para evitar múltiples ejecuciones
                             if st.button("🗑️ Eliminar", key=f"del_prod_{producto['id']}"):
-                                eliminar_producto(producto['id'])
+                                if f"deleting_{producto['id']}" not in st.session_state:
+                                    st.session_state[f"deleting_{producto['id']}"] = True
+                                    eliminar_producto(producto['id'])
             else:
                 st.info("📝 No hay productos registrados")
                 
@@ -62,6 +65,10 @@ def agregar_producto():
     """
     st.subheader("Agregar Nuevo Producto")
     
+    # Inicializar estado del formulario
+    if "form_submitted" not in st.session_state:
+        st.session_state.form_submitted = False
+    
     with st.form("producto_form", clear_on_submit=True):
         nombre = st.text_input("Nombre del producto *", placeholder="Ej: Laptop Gaming")
         descripcion = st.text_area("Descripción", placeholder="Ej: Laptop para gaming con 16GB RAM")
@@ -72,10 +79,18 @@ def agregar_producto():
         submitted = st.form_submit_button("💾 Guardar Producto")
         
         if submitted:
+            # Verificar si ya fue enviado
+            if st.session_state.form_submitted:
+                st.warning("⏳ El producto ya está siendo guardado...")
+                return
+                
             if not nombre.strip() or precio <= 0:
                 st.error("❌ Nombre y precio son obligatorios (precio debe ser mayor a 0)")
                 return
                 
+            # Marcar como enviado
+            st.session_state.form_submitted = True
+            
             conn = get_connection()
             if conn:
                 try:
@@ -86,10 +101,17 @@ def agregar_producto():
                     )
                     conn.commit()
                     st.success("✅ Producto agregado correctamente")
+                    
+                    # Limpiar el estado después de un éxito
+                    st.session_state.form_submitted = False
+                    
+                    # Forzar rerun después de un breve delay
                     st.rerun()
                     
                 except Exception as e:
                     st.error(f"❌ Error guardando producto: {e}")
+                    # Resetear el estado en caso de error
+                    st.session_state.form_submitted = False
                 finally:
                     cursor.close()
                     conn.close()
@@ -105,9 +127,17 @@ def eliminar_producto(producto_id):
             cursor.execute("DELETE FROM productos WHERE id = %s", (producto_id,))
             conn.commit()
             st.success("✅ Producto eliminado correctamente")
+            
+            # Limpiar el estado de eliminación
+            if f"deleting_{producto_id}" in st.session_state:
+                del st.session_state[f"deleting_{producto_id}"]
+                
             st.rerun()
         except Exception as e:
             st.error(f"❌ Error eliminando producto: {e}")
+            # Limpiar el estado en caso de error
+            if f"deleting_{producto_id}" in st.session_state:
+                del st.session_state[f"deleting_{producto_id}"]
         finally:
             cursor.close()
             conn.close()
