@@ -35,7 +35,6 @@ def ver_ventas():
             if ventas:
                 st.subheader(f"Total de ventas registradas: {len(ventas)}")
                 
-                # Métricas
                 total_ventas = sum(venta['total'] for venta in ventas)
                 col1, col2 = st.columns(2)
                 with col1:
@@ -45,7 +44,6 @@ def ver_ventas():
                 
                 st.write("---")
                 
-                # Lista de ventas
                 for venta in ventas:
                     with st.expander(f"🛒 Venta #{venta['id_venta']} - ${venta['total']:.2f} - {venta['fecha_venta'].strftime('%d/%m/%Y')}", expanded=False):
                         col1, col2 = st.columns(2)
@@ -70,11 +68,22 @@ def ver_ventas():
 
 def nueva_venta():
     """
-    Formulario para registrar nueva venta - VERSIÓN SIMPLIFICADA
+    Formulario para registrar nueva venta - SOLUCIÓN DEFINITIVA
     """
     st.subheader("Registrar Nueva Venta")
+
+    # ✅ SOLUCIÓN: Usar un estado único para controlar la venta
+    if 'venta_procesada' not in st.session_state:
+        st.session_state.venta_procesada = False
     
-    # ✅ CARGAR DATOS SOLO UNA VEZ
+    # ✅ Si ya se procesó una venta en esta ejecución, no hacer nada
+    if st.session_state.venta_procesada:
+        st.success("✅ Venta registrada exitosamente!")
+        if st.button("🔄 Registrar otra venta"):
+            st.session_state.venta_procesada = False
+            st.rerun()
+        return
+    
     conn = get_connection()
     if not conn:
         st.error("❌ No se pudo conectar a la base de datos")
@@ -103,23 +112,19 @@ def nueva_venta():
         st.warning("⚠️ No hay productos con stock disponible.")
         return
     
-    # ✅ FORMULARIO SIMPLIFICADO
+    # ✅ FORMULARIO CON clear_on_submit=True
     with st.form("venta_form", clear_on_submit=True):
-        # Selector de cliente
         cliente_options = {f"{c['nombre']}": c['id_cliente'] for c in clientes}
         cliente_seleccionado = st.selectbox("Cliente *", options=list(cliente_options.keys()))
         cliente_id = cliente_options[cliente_seleccionado]
         
-        # Selector de producto
         producto_options = {f"{p['nombre']} - ${p['precio']:.2f} (Stock: {p['stock']})": p['id_producto'] for p in productos}
         producto_seleccionado = st.selectbox("Producto *", options=list(producto_options.keys()))
         producto_id = producto_options[producto_seleccionado]
         
-        # Cantidad
         producto_stock = next(p['stock'] for p in productos if p['id_producto'] == producto_id)
         cantidad = st.number_input("Cantidad *", min_value=1, max_value=producto_stock, step=1)
         
-        # Mostrar resumen
         producto_precio = next(p['precio'] for p in productos if p['id_producto'] == producto_id)
         total = cantidad * producto_precio
         
@@ -128,62 +133,62 @@ def nueva_venta():
         submitted = st.form_submit_button("💾 Registrar Venta")
         
         if submitted:
-            # ✅ CONEXIÓN SEPARADA SOLO PARA EL INSERT
+            # ✅ MARCAR INMEDIATAMENTE que se está procesando
+            st.session_state.venta_procesada = True
+            
             conn_venta = get_connection()
             if not conn_venta:
                 st.error("❌ No se pudo conectar para registrar la venta")
+                st.session_state.venta_procesada = False
                 return
-                
+            
             try:
                 cursor_venta = conn_venta.cursor()
                 
-                # Registrar venta
+                # ✅ INSERTAR VENTA
                 cursor_venta.execute(
                     "INSERT INTO ventas (id_cliente, id_producto, cantidad, total) VALUES (%s, %s, %s, %s)",
                     (cliente_id, producto_id, cantidad, total)
                 )
                 
-                # Actualizar stock
+                # ✅ ACTUALIZAR STOCK
                 cursor_venta.execute(
                     "UPDATE productos SET stock = stock - %s WHERE id_producto = %s",
                     (cantidad, producto_id)
                 )
                 
                 conn_venta.commit()
+                
                 st.success("✅ Venta registrada correctamente")
                 st.balloons()
                 
-                # ✅ LIMPIAR EL FORMULARIO Y ESPERAR
-                st.info("🔄 La página se recargará automáticamente...")
-                st.rerun()
+                # ✅ NO HACER rerun() AUTOMÁTICO - Mostrar mensaje y botón
+                st.info("💡 La venta se ha registrado. Puedes verla en la pestaña 'Ver Ventas'")
                 
             except Exception as e:
                 st.error(f"❌ Error registrando venta: {e}")
+                st.session_state.venta_procesada = False
             finally:
                 cursor_venta.close()
                 conn_venta.close()
 
 def eliminar_venta(venta_id):
     """
-    Elimina una venta de la base de datos
+    Elimina una venta de la base de datos y restaura el stock
     """
     conn = get_connection()
     if conn:
         try:
             cursor = conn.cursor()
-            
-            # Primero obtener información de la venta para restaurar stock
             cursor.execute("SELECT id_producto, cantidad FROM ventas WHERE id_venta = %s", (venta_id,))
             venta_info = cursor.fetchone()
             
             if venta_info:
-                # Restaurar stock del producto
                 cursor.execute(
                     "UPDATE productos SET stock = stock + %s WHERE id_producto = %s",
                     (venta_info[1], venta_info[0])
                 )
             
-            # Eliminar la venta
             cursor.execute("DELETE FROM ventas WHERE id_venta = %s", (venta_id,))
             conn.commit()
             st.success("✅ Venta eliminada correctamente")
