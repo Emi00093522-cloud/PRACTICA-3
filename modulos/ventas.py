@@ -115,5 +115,70 @@ def nueva_venta():
         producto_seleccionado = st.selectbox("Producto *", options=list(producto_options.keys()))
         producto_id = producto_options[producto_seleccionado]
         
-        producto_stock = next(p['stock'] fo_
+        producto_stock = next(p['stock'] for p in productos if p['id_producto'] == producto_id)
+        cantidad = st.number_input("Cantidad *", min_value=1, max_value=producto_stock, step=1)
+        
+        producto_precio = next(p['precio'] for p in productos if p['id_producto'] == producto_id)
+        total = cantidad * producto_precio
+        
+        st.info(f"**Total a pagar:** ${total:.2f}")
+        
+        submitted = st.form_submit_button("💾 Registrar Venta")
+        
+        if submitted:
+            conn_venta = get_connection()
+            if not conn_venta:
+                st.error("❌ No se pudo conectar para registrar la venta")
+                return
+            try:
+                cursor_venta = conn_venta.cursor()
+                cursor_venta.execute(
+                    "INSERT INTO ventas (id_cliente, id_producto, cantidad, total) VALUES (%s, %s, %s, %s)",
+                    (cliente_id, producto_id, cantidad, total)
+                )
+                cursor_venta.execute(
+                    "UPDATE productos SET stock = stock - %s WHERE id_producto = %s",
+                    (cantidad, producto_id)
+                )
+                conn_venta.commit()
+                st.success("✅ Venta registrada correctamente")
+                st.balloons()
+                
+                # ✅ Guardar bandera para evitar duplicación al recargar
+                st.session_state["venta_registrada"] = True
+                st.rerun()
+                
+            except Exception as e:
+                st.error(f"❌ Error registrando venta: {e}")
+            finally:
+                cursor_venta.close()
+                conn_venta.close()
+
+def eliminar_venta(venta_id):
+    """
+    Elimina una venta de la base de datos y restaura el stock
+    """
+    conn = get_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id_producto, cantidad FROM ventas WHERE id_venta = %s", (venta_id,))
+            venta_info = cursor.fetchone()
+            
+            if venta_info:
+                cursor.execute(
+                    "UPDATE productos SET stock = stock + %s WHERE id_producto = %s",
+                    (venta_info[1], venta_info[0])
+                )
+            
+            cursor.execute("DELETE FROM ventas WHERE id_venta = %s", (venta_id,))
+            conn.commit()
+            st.success("✅ Venta eliminada correctamente")
+            st.rerun()
+            
+        except Exception as e:
+            st.error(f"❌ Error eliminando venta: {e}")
+        finally:
+            cursor.close()
+            conn.close()
 
