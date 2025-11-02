@@ -39,16 +39,27 @@ def ver_productos():
                         
                         with col2:
                             st.write(f"**Precio:** ${producto['precio']:.2f}")
-                            st.write(f"**Stock:** {producto['stock']} unidades")
+                            st.write(f"**Stock actual:** {producto['stock']} unidades")
+                            
+                            # 🔹 NUEVO: formulario para agregar stock
+                            with st.form(f"form_stock_{producto['id_producto']}", clear_on_submit=True):
+                                cantidad_agregar = st.number_input(
+                                    "Cantidad a agregar",
+                                    min_value=1,
+                                    step=1,
+                                    key=f"stock_input_{producto['id_producto']}"
+                                )
+                                submitted_stock = st.form_submit_button("➕ Agregar Stock")
+                                
+                                if submitted_stock:
+                                    agregar_stock(producto['id_producto'], cantidad_agregar)
                         
                         with col3:
-                            # ✅ CORREGIDO: usar id_producto en lugar de id
                             st.write(f"**ID:** {producto['id_producto']}")
-                            # ✅ CORREGIDO: usar fecha_creacion en lugar de fecha_creacion
                             if producto['fecha_creacion']:
                                 st.write(f"**Creado:** {producto['fecha_creacion'].strftime('%d/%m/%Y')}")
                             
-                            # ✅ CORREGIDO: usar id_producto en la eliminación
+                            # Botón eliminar
                             if st.button("🗑️ Eliminar", key=f"del_prod_{producto['id_producto']}"):
                                 eliminar_producto(producto['id_producto'])
             else:
@@ -85,13 +96,13 @@ def agregar_producto():
                 try:
                     cursor = conn.cursor()
                     
-                    # ✅ VERIFICAR SI EL PRODUCTO YA EXISTE
+                    # Verificar si el producto ya existe
                     cursor.execute("SELECT id_producto FROM productos WHERE nombre = %s", (nombre.strip(),))
                     if cursor.fetchone():
                         st.error("❌ Ya existe un producto con ese nombre")
                         return
                     
-                    # ✅ INSERTAR NUEVO PRODUCTO
+                    # Insertar nuevo producto
                     cursor.execute(
                         "INSERT INTO productos (nombre, descripcion, precio, stock, categoria) VALUES (%s, %s, %s, %s, %s)",
                         (nombre.strip(), descripcion.strip() if descripcion else None, precio, stock, categoria if categoria else None)
@@ -115,13 +126,34 @@ def eliminar_producto(producto_id):
     if conn:
         try:
             cursor = conn.cursor()
-            # ✅ CORREGIDO: usar id_producto en lugar de id
             cursor.execute("DELETE FROM productos WHERE id_producto = %s", (producto_id,))
             conn.commit()
             st.success("✅ Producto eliminado correctamente")
             st.rerun()
         except Exception as e:
             st.error(f"❌ Error eliminando producto: {e}")
+        finally:
+            cursor.close()
+            conn.close()
+
+def agregar_stock(producto_id, cantidad):
+    """
+    Incrementa el stock de un producto existente
+    """
+    conn = get_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            # Actualizar stock sumando la cantidad
+            cursor.execute(
+                "UPDATE productos SET stock = stock + %s WHERE id_producto = %s",
+                (cantidad, producto_id)
+            )
+            conn.commit()
+            st.success(f"✅ Se agregaron {cantidad} unidades al stock")
+            st.rerun()
+        except Exception as e:
+            st.error(f"❌ Error al agregar stock: {e}")
         finally:
             cursor.close()
             conn.close()
