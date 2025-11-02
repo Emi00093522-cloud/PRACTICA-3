@@ -23,7 +23,6 @@ def ver_ventas():
     if conn:
         try:
             cursor = conn.cursor(dictionary=True)
-            # ✅ CONSULTA CORREGIDA - USAR NOMBRES CORRECTOS DE COLUMNAS
             cursor.execute("""
                 SELECT v.*, c.nombre as cliente_nombre, p.nombre as producto_nombre, p.precio
                 FROM ventas v
@@ -48,7 +47,6 @@ def ver_ventas():
                 
                 # Lista de ventas
                 for venta in ventas:
-                    # ✅ CORREGIDO: usar id_venta en lugar de id
                     with st.expander(f"🛒 Venta #{venta['id_venta']} - ${venta['total']:.2f} - {venta['fecha_venta'].strftime('%d/%m/%Y')}", expanded=False):
                         col1, col2 = st.columns(2)
                         with col1:
@@ -59,7 +57,6 @@ def ver_ventas():
                             st.write(f"**Precio Unitario:** ${venta['precio']:.2f}")
                             st.write(f"**Fecha:** {venta['fecha_venta'].strftime('%d/%m/%Y %H:%M')}")
                             
-                        # ✅ CORREGIDO: usar id_venta en la eliminación
                         if st.button("🗑️ Eliminar", key=f"del_venta_{venta['id_venta']}"):
                             eliminar_venta(venta['id_venta'])
             else:
@@ -77,6 +74,7 @@ def nueva_venta():
     """
     st.subheader("Registrar Nueva Venta")
     
+    # ✅ CERRAR LA CONEXIÓN ANTERIOR ANTES DE CREAR UNA NUEVA
     conn = get_connection()
     if conn:
         try:
@@ -88,68 +86,94 @@ def nueva_venta():
             cursor.execute("SELECT id_producto, nombre, precio, stock FROM productos WHERE stock > 0 ORDER BY nombre")
             productos = cursor.fetchall()
             
+            # ✅ CERRAR CURSOR TEMPRANO
+            cursor.close()
+            
             if not clientes:
                 st.warning("⚠️ No hay clientes registrados. Primero registre al menos un cliente.")
+                conn.close()
                 return
                 
             if not productos:
                 st.warning("⚠️ No hay productos con stock disponible.")
+                conn.close()
                 return
             
-            with st.form("venta_form", clear_on_submit=True):
-                # Selector de cliente
-                cliente_options = {f"{c['nombre']}": c['id_cliente'] for c in clientes}
-                cliente_seleccionado = st.selectbox(
-                    "Cliente *",
-                    options=list(cliente_options.keys())
-                )
-                cliente_id = cliente_options[cliente_seleccionado]
-                
-                # Selector de producto
-                producto_options = {f"{p['nombre']} - ${p['precio']:.2f} (Stock: {p['stock']})": p['id_producto'] for p in productos}
-                producto_seleccionado = st.selectbox(
-                    "Producto *",
-                    options=list(producto_options.keys())
-                )
-                producto_id = producto_options[producto_seleccionado]
-                
-                # Cantidad
-                producto_stock = next(p['stock'] for p in productos if p['id_producto'] == producto_id)
-                cantidad = st.number_input("Cantidad *", min_value=1, max_value=producto_stock, step=1)
-                
-                # Mostrar resumen
-                producto_precio = next(p['precio'] for p in productos if p['id_producto'] == producto_id)
-                total = cantidad * producto_precio
-                
-                st.info(f"**Total a pagar:** ${total:.2f}")
-                
-                submitted = st.form_submit_button("💾 Registrar Venta")
-                
-                if submitted:
+        except Exception as e:
+            st.error(f"❌ Error cargando datos: {e}")
+            conn.close()
+            return
+    
+    # ✅ MOVER EL FORMULARIO FUERA DEL BLOQUE try PARA EVITAR EJECUCIONES MÚLTIPLES
+    with st.form("venta_form", clear_on_submit=True):
+        # Selector de cliente
+        cliente_options = {f"{c['nombre']}": c['id_cliente'] for c in clientes}
+        cliente_seleccionado = st.selectbox(
+            "Cliente *",
+            options=list(cliente_options.keys())
+        )
+        cliente_id = cliente_options[cliente_seleccionado]
+        
+        # Selector de producto
+        producto_options = {f"{p['nombre']} - ${p['precio']:.2f} (Stock: {p['stock']})": p['id_producto'] for p in productos}
+        producto_seleccionado = st.selectbox(
+            "Producto *",
+            options=list(producto_options.keys())
+        )
+        producto_id = producto_options[producto_seleccionado]
+        
+        # Cantidad
+        producto_stock = next(p['stock'] for p in productos if p['id_producto'] == producto_id)
+        cantidad = st.number_input("Cantidad *", min_value=1, max_value=producto_stock, step=1)
+        
+        # Mostrar resumen
+        producto_precio = next(p['precio'] for p in productos if p['id_producto'] == producto_id)
+        total = cantidad * producto_precio
+        
+        st.info(f"**Total a pagar:** ${total:.2f}")
+        
+        submitted = st.form_submit_button("💾 Registrar Venta")
+        
+        if submitted:
+            # ✅ CREAR NUEVA CONEXIÓN ESPECÍFICA PARA EL INSERT
+            conn_venta = get_connection()
+            if conn_venta:
+                try:
+                    cursor_venta = conn_venta.cursor()
+                    
+                    # ✅ VERIFICAR SI LA VENTA YA EXISTE (prevención adicional)
+                    cursor_venta.execute(
+                        "SELECT id_venta FROM ventas WHERE id_cliente = %s AND id_producto = %s AND cantidad = %s AND total = %s",
+                        (cliente_id, producto_id, cantidad, total)
+                    )
+                    if cursor_venta.fetchone():
+                        st.error("❌ Esta venta ya fue registrada anteriormente")
+                        return
+                    
                     # Registrar venta
-                    cursor.execute(
-                        # ✅ CORREGIDO: usar id_cliente e id_producto
+                    cursor_venta.execute(
                         "INSERT INTO ventas (id_cliente, id_producto, cantidad, total) VALUES (%s, %s, %s, %s)",
                         (cliente_id, producto_id, cantidad, total)
                     )
                     
                     # Actualizar stock
-                    cursor.execute(
-                        # ✅ CORREGIDO: usar id_producto
+                    cursor_venta.execute(
                         "UPDATE productos SET stock = stock - %s WHERE id_producto = %s",
                         (cantidad, producto_id)
                     )
                     
-                    conn.commit()
+                    conn_venta.commit()
                     st.success("✅ Venta registrada correctamente")
                     st.balloons()
+                    
+                    # ✅ USAR st.rerun() SOLO UNA VEZ
                     st.rerun()
                     
-        except Exception as e:
-            st.error(f"❌ Error registrando venta: {e}")
-        finally:
-            cursor.close()
-            conn.close()
+                except Exception as e:
+                    st.error(f"❌ Error registrando venta: {e}")
+                finally:
+                    cursor_venta.close()
+                    conn_venta.close()
 
 def eliminar_venta(venta_id):
     """
