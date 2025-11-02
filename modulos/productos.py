@@ -42,11 +42,15 @@ def ver_productos():
                             st.write(f"**Stock:** {producto['stock']} unidades")
                         
                         with col3:
-                            st.write(f"**ID:** {producto['id']}")
-                            st.write(f"**Creado:** {producto['fecha_creacion'].strftime('%d/%m/%Y')}")
+                            # ✅ CORREGIDO: usar id_producto en lugar de id
+                            st.write(f"**ID:** {producto['id_producto']}")
+                            # ✅ CORREGIDO: usar fecha_creacion en lugar de fecha_creacion
+                            if producto['fecha_creacion']:
+                                st.write(f"**Creado:** {producto['fecha_creacion'].strftime('%d/%m/%Y')}")
                             
-                            if st.button("🗑️ Eliminar", key=f"del_prod_{producto['id']}"):
-                                eliminar_producto(producto['id'])
+                            # ✅ CORREGIDO: usar id_producto en la eliminación
+                            if st.button("🗑️ Eliminar", key=f"del_prod_{producto['id_producto']}"):
+                                eliminar_producto(producto['id_producto'])
             else:
                 st.info("📝 No hay productos registrados")
                 
@@ -80,12 +84,21 @@ def agregar_producto():
             if conn:
                 try:
                     cursor = conn.cursor()
+                    
+                    # ✅ VERIFICAR SI EL PRODUCTO YA EXISTE
+                    cursor.execute("SELECT id_producto FROM productos WHERE nombre = %s", (nombre.strip(),))
+                    if cursor.fetchone():
+                        st.error("❌ Ya existe un producto con ese nombre")
+                        return
+                    
+                    # ✅ INSERTAR NUEVO PRODUCTO
                     cursor.execute(
                         "INSERT INTO productos (nombre, descripcion, precio, stock, categoria) VALUES (%s, %s, %s, %s, %s)",
                         (nombre.strip(), descripcion.strip() if descripcion else None, precio, stock, categoria if categoria else None)
                     )
                     conn.commit()
                     st.success("✅ Producto agregado correctamente")
+                    st.balloons()
                     st.rerun()
                     
                 except Exception as e:
@@ -102,7 +115,8 @@ def eliminar_producto(producto_id):
     if conn:
         try:
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM productos WHERE id = %s", (producto_id,))
+            # ✅ CORREGIDO: usar id_producto en lugar de id
+            cursor.execute("DELETE FROM productos WHERE id_producto = %s", (producto_id,))
             conn.commit()
             st.success("✅ Producto eliminado correctamente")
             st.rerun()
