@@ -47,7 +47,10 @@ def ver_ventas():
                 
                 # Lista de ventas
                 for venta in ventas:
-                    with st.expander(f"🛒 Venta #{venta['id_venta']} - ${venta['total']:.2f} - {venta['fecha_venta'].strftime('%d/%m/%Y')}", expanded=False):
+                    with st.expander(
+                        f"🛒 Venta #{venta['id_venta']} - ${venta['total']:.2f} - {venta['fecha_venta'].strftime('%d/%m/%Y')}",
+                        expanded=False
+                    ):
                         col1, col2 = st.columns(2)
                         with col1:
                             st.write(f"**Cliente:** {venta['cliente_nombre'] or 'N/A'}")
@@ -70,9 +73,13 @@ def ver_ventas():
 
 def nueva_venta():
     """
-    Formulario para registrar nueva venta - VERSIÓN SIMPLIFICADA
+    Formulario para registrar nueva venta - versión segura (sin duplicaciones)
     """
     st.subheader("Registrar Nueva Venta")
+
+    # Inicializar bandera de venta procesada
+    if "venta_registrada" not in st.session_state:
+        st.session_state["venta_registrada"] = False
     
     # ✅ CARGAR DATOS SOLO UNA VEZ
     conn = get_connection()
@@ -103,7 +110,7 @@ def nueva_venta():
         st.warning("⚠️ No hay productos con stock disponible.")
         return
     
-    # ✅ FORMULARIO SIMPLIFICADO
+    # ✅ FORMULARIO
     with st.form("venta_form", clear_on_submit=True):
         # Selector de cliente
         cliente_options = {f"{c['nombre']}": c['id_cliente'] for c in clientes}
@@ -111,7 +118,9 @@ def nueva_venta():
         cliente_id = cliente_options[cliente_seleccionado]
         
         # Selector de producto
-        producto_options = {f"{p['nombre']} - ${p['precio']:.2f} (Stock: {p['stock']})": p['id_producto'] for p in productos}
+        producto_options = {
+            f"{p['nombre']} - ${p['precio']:.2f} (Stock: {p['stock']})": p['id_producto'] for p in productos
+        }
         producto_seleccionado = st.selectbox("Producto *", options=list(producto_options.keys()))
         producto_id = producto_options[producto_seleccionado]
         
@@ -126,9 +135,11 @@ def nueva_venta():
         st.info(f"**Total a pagar:** ${total:.2f}")
         
         submitted = st.form_submit_button("💾 Registrar Venta")
-        
-        if submitted:
-            # ✅ CONEXIÓN SEPARADA SOLO PARA EL INSERT
+
+        # ✅ Solo ejecutar si no se ha registrado ya
+        if submitted and not st.session_state["venta_registrada"]:
+            st.session_state["venta_registrada"] = True  # Evita repetición
+            
             conn_venta = get_connection()
             if not conn_venta:
                 st.error("❌ No se pudo conectar para registrar la venta")
@@ -153,7 +164,7 @@ def nueva_venta():
                 st.success("✅ Venta registrada correctamente")
                 st.balloons()
                 
-                # ✅ LIMPIAR EL FORMULARIO Y ESPERAR
+                # ✅ Recargar
                 st.info("🔄 La página se recargará automáticamente...")
                 st.rerun()
                 
@@ -172,18 +183,16 @@ def eliminar_venta(venta_id):
         try:
             cursor = conn.cursor()
             
-            # Primero obtener información de la venta para restaurar stock
+            # Restaurar stock antes de eliminar
             cursor.execute("SELECT id_producto, cantidad FROM ventas WHERE id_venta = %s", (venta_id,))
             venta_info = cursor.fetchone()
             
             if venta_info:
-                # Restaurar stock del producto
                 cursor.execute(
                     "UPDATE productos SET stock = stock + %s WHERE id_producto = %s",
                     (venta_info[1], venta_info[0])
                 )
             
-            # Eliminar la venta
             cursor.execute("DELETE FROM ventas WHERE id_venta = %s", (venta_id,))
             conn.commit()
             st.success("✅ Venta eliminada correctamente")
@@ -194,3 +203,4 @@ def eliminar_venta(venta_id):
         finally:
             cursor.close()
             conn.close()
+
