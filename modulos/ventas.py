@@ -23,11 +23,12 @@ def ver_ventas():
     if conn:
         try:
             cursor = conn.cursor(dictionary=True)
+            # ✅ CONSULTA CORREGIDA - USAR NOMBRES CORRECTOS DE COLUMNAS
             cursor.execute("""
                 SELECT v.*, c.nombre as cliente_nombre, p.nombre as producto_nombre, p.precio
                 FROM ventas v
-                LEFT JOIN clientes c ON v.cliente_id = c.id
-                LEFT JOIN productos p ON v.producto_id = p.id
+                LEFT JOIN clientes c ON v.id_cliente = c.id_cliente
+                LEFT JOIN productos p ON v.id_producto = p.id_producto
                 ORDER BY v.fecha_venta DESC
             """)
             ventas = cursor.fetchall()
@@ -47,7 +48,8 @@ def ver_ventas():
                 
                 # Lista de ventas
                 for venta in ventas:
-                    with st.expander(f"🛒 Venta #${venta['id']} - ${venta['total']:.2f} - {venta['fecha_venta'].strftime('%d/%m/%Y')}", expanded=False):
+                    # ✅ CORREGIDO: usar id_venta en lugar de id
+                    with st.expander(f"🛒 Venta #{venta['id_venta']} - ${venta['total']:.2f} - {venta['fecha_venta'].strftime('%d/%m/%Y')}", expanded=False):
                         col1, col2 = st.columns(2)
                         with col1:
                             st.write(f"**Cliente:** {venta['cliente_nombre'] or 'N/A'}")
@@ -56,6 +58,10 @@ def ver_ventas():
                             st.write(f"**Cantidad:** {venta['cantidad']}")
                             st.write(f"**Precio Unitario:** ${venta['precio']:.2f}")
                             st.write(f"**Fecha:** {venta['fecha_venta'].strftime('%d/%m/%Y %H:%M')}")
+                            
+                        # ✅ CORREGIDO: usar id_venta en la eliminación
+                        if st.button("🗑️ Eliminar", key=f"del_venta_{venta['id_venta']}"):
+                            eliminar_venta(venta['id_venta'])
             else:
                 st.info("📝 No hay ventas registradas")
                 
@@ -76,10 +82,10 @@ def nueva_venta():
         try:
             # Obtener datos necesarios
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT id, nombre FROM clientes ORDER BY nombre")
+            cursor.execute("SELECT id_cliente, nombre FROM clientes ORDER BY nombre")
             clientes = cursor.fetchall()
             
-            cursor.execute("SELECT id, nombre, precio, stock FROM productos WHERE stock > 0 ORDER BY nombre")
+            cursor.execute("SELECT id_producto, nombre, precio, stock FROM productos WHERE stock > 0 ORDER BY nombre")
             productos = cursor.fetchall()
             
             if not clientes:
@@ -90,9 +96,9 @@ def nueva_venta():
                 st.warning("⚠️ No hay productos con stock disponible.")
                 return
             
-            with st.form("venta_form"):
+            with st.form("venta_form", clear_on_submit=True):
                 # Selector de cliente
-                cliente_options = {f"{c['nombre']} (ID: {c['id']})": c['id'] for c in clientes}
+                cliente_options = {f"{c['nombre']}": c['id_cliente'] for c in clientes}
                 cliente_seleccionado = st.selectbox(
                     "Cliente *",
                     options=list(cliente_options.keys())
@@ -100,7 +106,7 @@ def nueva_venta():
                 cliente_id = cliente_options[cliente_seleccionado]
                 
                 # Selector de producto
-                producto_options = {f"{p['nombre']} - ${p['precio']:.2f} (Stock: {p['stock']})": p['id'] for p in productos}
+                producto_options = {f"{p['nombre']} - ${p['precio']:.2f} (Stock: {p['stock']})": p['id_producto'] for p in productos}
                 producto_seleccionado = st.selectbox(
                     "Producto *",
                     options=list(producto_options.keys())
@@ -108,11 +114,11 @@ def nueva_venta():
                 producto_id = producto_options[producto_seleccionado]
                 
                 # Cantidad
-                producto_stock = next(p['stock'] for p in productos if p['id'] == producto_id)
+                producto_stock = next(p['stock'] for p in productos if p['id_producto'] == producto_id)
                 cantidad = st.number_input("Cantidad *", min_value=1, max_value=producto_stock, step=1)
                 
                 # Mostrar resumen
-                producto_precio = next(p['precio'] for p in productos if p['id'] == producto_id)
+                producto_precio = next(p['precio'] for p in productos if p['id_producto'] == producto_id)
                 total = cantidad * producto_precio
                 
                 st.info(f"**Total a pagar:** ${total:.2f}")
@@ -122,22 +128,57 @@ def nueva_venta():
                 if submitted:
                     # Registrar venta
                     cursor.execute(
-                        "INSERT INTO ventas (cliente_id, producto_id, cantidad, total) VALUES (%s, %s, %s, %s)",
+                        # ✅ CORREGIDO: usar id_cliente e id_producto
+                        "INSERT INTO ventas (id_cliente, id_producto, cantidad, total) VALUES (%s, %s, %s, %s)",
                         (cliente_id, producto_id, cantidad, total)
                     )
                     
                     # Actualizar stock
                     cursor.execute(
-                        "UPDATE productos SET stock = stock - %s WHERE id = %s",
+                        # ✅ CORREGIDO: usar id_producto
+                        "UPDATE productos SET stock = stock - %s WHERE id_producto = %s",
                         (cantidad, producto_id)
                     )
                     
                     conn.commit()
                     st.success("✅ Venta registrada correctamente")
+                    st.balloons()
                     st.rerun()
                     
         except Exception as e:
             st.error(f"❌ Error registrando venta: {e}")
+        finally:
+            cursor.close()
+            conn.close()
+
+def eliminar_venta(venta_id):
+    """
+    Elimina una venta de la base de datos
+    """
+    conn = get_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            
+            # Primero obtener información de la venta para restaurar stock
+            cursor.execute("SELECT id_producto, cantidad FROM ventas WHERE id_venta = %s", (venta_id,))
+            venta_info = cursor.fetchone()
+            
+            if venta_info:
+                # Restaurar stock del producto
+                cursor.execute(
+                    "UPDATE productos SET stock = stock + %s WHERE id_producto = %s",
+                    (venta_info[1], venta_info[0])
+                )
+            
+            # Eliminar la venta
+            cursor.execute("DELETE FROM ventas WHERE id_venta = %s", (venta_id,))
+            conn.commit()
+            st.success("✅ Venta eliminada correctamente")
+            st.rerun()
+            
+        except Exception as e:
+            st.error(f"❌ Error eliminando venta: {e}")
         finally:
             cursor.close()
             conn.close()
